@@ -8,20 +8,23 @@ import serial.tools.list_ports
 
 class MSG(IntEnum):
     """Message types as defined in messages.h"""
-    RESET = 0       # Reset Microcontroller
+    RESET = 0 # Reset Microcontroller (flag)
+    START = 1 # Start system (temperature control). Returns Ack/Nack
+    STOP = 2  # Stop system (temperature control). Returns Ack/Nack
+    ACK = 3   # Acknowledge transmission (flag)
+    NACK = 4  # Not acknowledge transmission (flag)
 
-    T_SETPOINT = 1  # Temperature setpoint
-    T_ACTUAL = 2    # Actual temperature
-    CURRENT = 3     # Current value
+    T_SETPOINT = 5  # Temperature setpoint (float). Returns Ack/Nack
+    T_ACTUAL = 6    # Actual temperature (float)
+    CURRENT = 7     # Current value (float)
 
-    PID_P = 4       # PID proportional gain
-    PID_I = 5       # PID integral gain
-    PID_D = 6       # PID derivative gain
+    PID_P = 8       # PID proportional gain (float)
+    PID_I = 9       # PID integral gain (float)
+    PID_D = 10      # PID derivative gain (float)
 
-    STATUS = 7      # Status LEDs, specified by one byte: [x, x, x, x, Fault, OC, OT, Active] (MSB first)
+    STATUS = 11      # Status LEDs, specified by one byte, transmitted as int: [x, x, x, x, Fault, OC, OT, Active] (MSB first)
 
-    MSG_END = 8     # End of transmission
-
+    MSG_END = 12     # End of transmission
 
 class MSG_TYPE(IntEnum):
     """Message type identifiers"""
@@ -66,6 +69,7 @@ class Comm:
             self.ser.open()
         except:
             raise Exception("Could not open serial port")
+            print("That did absolutely not work at all never ever")
         else:
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
@@ -163,6 +167,9 @@ class Comm:
     
     def msg_available(self):
         return self.ser.in_waiting != 0
+
+    def clear_input_buffer(self):
+        self.ser.reset_input_buffer()
 
     def get_next_msg(self):
         """Get the next message from the serial port"""
