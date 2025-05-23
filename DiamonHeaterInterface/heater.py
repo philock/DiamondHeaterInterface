@@ -205,7 +205,7 @@ def handle_Serial():
     # Read all incoming messages until MSG_END
     while True:
         msg = comm.get_next_msg()
-        if msg.msg != MSG.MSG_END: print(msg.msg)
+        #if msg.msg != MSG.MSG_END: print(msg.msg)
 
         if msg.msg == MSG.MSG_END:
             break  
@@ -278,13 +278,22 @@ def run():
             dpg.add_combo(port_selection, tag="Port select", default_value="COM5", width=100)
             dpg.add_button(tag = "Connect Button", label="Connect", callback=connect)
 
-        # Sliders to change PID loop gains
+        # Sliders to change PID loop gains. Handlers to only transmit after slider is released.
         dpg.add_separator(label="PID Settings")
         dpg.add_text("PID control loop gains")
+        with dpg.item_handler_registry(tag="release handler P") as handler:
+            dpg.add_item_deactivated_after_edit_handler(callback=set_P)
+        with dpg.item_handler_registry(tag="release handler I") as handler:
+            dpg.add_item_deactivated_after_edit_handler(callback=set_I)
+        with dpg.item_handler_registry(tag="release handler D") as handler:
+            dpg.add_item_deactivated_after_edit_handler(callback=set_D)
         with dpg.group(tag="Slider Group", enabled=False):
-            dpg.add_slider_float(tag="slider_P", max_value=cfg.P_max, default_value=cfg.P_default, format="Kp = %.3f", callback=set_P)
-            dpg.add_slider_float(tag="slider_I", max_value=cfg.I_max, default_value=cfg.I_default, format="Ki = %.3f", callback=set_I)
-            dpg.add_slider_float(tag="slider_D", max_value=cfg.D_max, default_value=cfg.D_default, format="Kd = %.3f", callback=set_D)
+            dpg.add_slider_float(tag="slider_P", max_value=cfg.P_max, default_value=cfg.P_default, format="Kp = %.3f")#, callback=set_P)
+            dpg.add_slider_float(tag="slider_I", max_value=cfg.I_max, default_value=cfg.I_default, format="Ki = %.3f")#, callback=set_I)
+            dpg.add_slider_float(tag="slider_D", max_value=cfg.D_max, default_value=cfg.D_default, format="Kd = %.3f")#, callback=set_D)
+        dpg.bind_item_handler_registry("slider_P", "release handler P")
+        dpg.bind_item_handler_registry("slider_I", "release handler I")
+        dpg.bind_item_handler_registry("slider_D", "release handler D")
         
         # Logger box for status messages
         dpg.add_separator(label="Log")
