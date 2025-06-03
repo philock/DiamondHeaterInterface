@@ -9,10 +9,10 @@ T_max = 200.0
 T_min = 0
 
 # PID settings
-P_max = 0.5
-I_max = 0.5
-D_max = 0.5
+P_max = 0.2
+I_max = 0.05
+D_max = 0.05
 
-P_default = 0.1
-I_default = 0.1
-D_default = 0.1
+P_default = 0.045
+I_default = 0.01
+D_default = 0.0

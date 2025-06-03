@@ -92,16 +92,19 @@ def clear_plot():
 # Slider callbacks: Send new PID gains to heater
 def set_P():
     p = dpg.get_value("slider_P")
+    print(p)
     comm.add_variable_token(p, MSG.PID_P)
     comm.transmit()
     log.log_info("Set proportional gain")
 def set_I():
     i = dpg.get_value("slider_I")
+    print(i)
     comm.add_variable_token(i, MSG.PID_I)
     comm.transmit()
     log.log_info("Set integral gain")
 def set_D():
     d = dpg.get_value("slider_D")
+    print(d)
     comm.add_variable_token(d, MSG.PID_D)
     comm.transmit()
     log.log_info("Set differential gain")
@@ -143,6 +146,10 @@ def setIndicators(status):
             log.log_error("System Fault!")
         else:                 
             dpg.configure_item("Indicator Fault", texture_tag = "RedIndicatorOff")
+
+    if(status & 0b1110): # One of the fault indicators is on
+        dpg.configure_item("start stop button", label="Start")
+        dpg.configure_item("start stop button", callback=start_button)
 
 # Handle UI scaling when viewport is resized   
 def on_viewport_resize(sender, app_data):
@@ -224,7 +231,7 @@ def handle_Serial():
 
         elif msg.msg == MSG.CURRENT:
             I = comm.get_payload(float)
-            dpg.configure_item("current_value", default_value=f"{I:.1f}")
+            dpg.configure_item("current_value", default_value=f"{I:.2f}")
 
         elif msg.msg == MSG.STATUS:
             status = comm.get_payload(int)
@@ -235,6 +242,12 @@ def handle_Serial():
 
         elif msg.msg == MSG.NACK:
             handleAckNack(False)
+
+        # Reset button on PCB was pressed
+        elif msg.msg == MSG.RESET:
+            dpg.configure_item("start stop button", label="Start")
+            dpg.configure_item("start stop button", callback=start_button)
+            log.log_info("Reset button pressed")
 
     # Acknowledge reception and feed the watchdog. If the controller does not receive this Ack over five seconds, it resets
     comm.add_flag_token(MSG.ACK) 
@@ -288,9 +301,9 @@ def run():
         with dpg.item_handler_registry(tag="release handler D") as handler:
             dpg.add_item_deactivated_after_edit_handler(callback=set_D)
         with dpg.group(tag="Slider Group", enabled=False):
-            dpg.add_slider_float(tag="slider_P", max_value=cfg.P_max, default_value=cfg.P_default, format="Kp = %.3f")#, callback=set_P)
-            dpg.add_slider_float(tag="slider_I", max_value=cfg.I_max, default_value=cfg.I_default, format="Ki = %.3f")#, callback=set_I)
-            dpg.add_slider_float(tag="slider_D", max_value=cfg.D_max, default_value=cfg.D_default, format="Kd = %.3f")#, callback=set_D)
+            dpg.add_slider_float(tag="slider_P", max_value=cfg.P_max, default_value=cfg.P_default, format="Kp = %.5f")#, callback=set_P)
+            dpg.add_slider_float(tag="slider_I", max_value=cfg.I_max, default_value=cfg.I_default, format="Ki = %.5f")#, callback=set_I)
+            dpg.add_slider_float(tag="slider_D", max_value=cfg.D_max,min_value=-cfg.D_max, default_value=cfg.D_default, format="Kd = %.5f")#, callback=set_D)
         dpg.bind_item_handler_registry("slider_P", "release handler P")
         dpg.bind_item_handler_registry("slider_I", "release handler I")
         dpg.bind_item_handler_registry("slider_D", "release handler D")
@@ -348,7 +361,7 @@ def run():
                 dpg.add_text("Current", tag="current_label")
                 dpg.bind_item_font("current_label", font_arial)
                 with dpg.group(horizontal=True):
-                    dpg.add_text(f"{current:.1f}", tag="current_value")
+                    dpg.add_text(f"{current:.2f}", tag="current_value")
                     dpg.add_text("A", tag="Amps")
                     dpg.bind_item_font("current_value", font_7seg)
                     dpg.bind_item_font("Amps", font_arial_big)
