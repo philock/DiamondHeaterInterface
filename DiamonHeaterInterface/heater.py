@@ -31,16 +31,22 @@ def connect():
     except:
         log.log_error("Failed to establish connection!")
     else:
-        dpg.configure_item("Connect Button", label="Disconnect")
-        dpg.configure_item("Connect Button", callback=disconnect)
-        dpg.configure_item("Slider Group", enabled=True)
-        dpg.configure_item("Temperature Group", enabled=True)
         # Set default PID values
         comm.add_variable_token(dpg.get_value("slider_P"), MSG.PID_P)
         comm.add_variable_token(dpg.get_value("slider_I"), MSG.PID_I)
         comm.add_variable_token(dpg.get_value("slider_D"), MSG.PID_D)
-        comm.transmit()
-        log.log_info("Successfully connected")
+
+        # Transmit PID values. Even if connection to the selected port was sucessful, it might not be the Teensy microcontroller and the write will fail
+        try:
+            comm.transmit() 
+        except: 
+            log.log_error("Failed to establish connection!")
+        else:
+            dpg.configure_item("Connect Button", label="Disconnect")
+            dpg.configure_item("Connect Button", callback=disconnect)
+            dpg.configure_item("Slider Group", enabled=True)
+            dpg.configure_item("Temperature Group", enabled=True)
+            log.log_info("Successfully connected")
 
 # Disconnect button callback
 def disconnect():

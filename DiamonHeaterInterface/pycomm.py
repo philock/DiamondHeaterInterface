@@ -46,9 +46,9 @@ class Comm:
     
     BUF_SIZE = 128
     
-    def __init__(self, port=None, baud_rate=115200, timeout=0.1):
+    def __init__(self, port=None, baud_rate=115200, timeout=0.1, write_timeout = 1):
         """Initialize the serial communication with the specified baud rate"""
-        self.ser = serial.Serial(port=port, baudrate=baud_rate, timeout=timeout)
+        self.ser = serial.Serial(port=port, baudrate=baud_rate, timeout=timeout, write_timeout=write_timeout)
         
         self.tx_buf = bytearray(self.BUF_SIZE)  # Transmit buffer
         self.tx_buf_pos = 0                     # Current position in transmit buffer
@@ -159,7 +159,10 @@ class Comm:
             self.tx_buf[self.tx_buf_pos] = MSG.MSG_END
             
             # Send over Serial
-            self.ser.write(self.tx_buf[:self.tx_buf_pos + 1])
+            try:
+                self.ser.write(self.tx_buf[:self.tx_buf_pos + 1])
+            except:
+                raise Exception("Failed to write data to serial port")
             
             # Clear transmit buffer
             self.tx_buf = bytearray(self.BUF_SIZE)
