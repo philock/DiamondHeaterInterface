@@ -255,6 +255,10 @@ def handle_Serial():
             dpg.configure_item("start stop button", callback=start_button)
             log.log_info("Reset button pressed")
 
+        elif msg.msg == MSG.ERROR_MSG:
+            err_msg = comm.get_payload(str)
+            log.log_debug(err_msg)
+
     # Acknowledge reception and feed the watchdog. If the controller does not receive this Ack over five seconds, it resets
     comm.add_flag_token(MSG.ACK) 
     comm.transmit()

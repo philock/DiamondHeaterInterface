@@ -22,9 +22,11 @@ class MSG(IntEnum):
     PID_I = 9       # PID integral gain (float)
     PID_D = 10      # PID derivative gain (float)
 
-    STATUS = 11      # Status LEDs, specified by one byte, transmitted as int: [x, x, x, x, Fault, OC, OT, Active] (MSB first)
+    STATUS = 11     # Status LEDs, specified by one byte, transmitted as int: [x, x, x, x, Fault, OC, OT, Active] (MSB first)
 
-    MSG_END = 12     # End of transmission
+    ERROR_MSG = 12  # Error message string (char array, custom size)
+
+    MSG_END = 13    # End of transmission
 
 class MSG_TYPE(IntEnum):
     """Message type identifiers"""
@@ -215,7 +217,7 @@ class Comm:
         """Read and return the payload for the current message"""
         if self.rxm.msg_type == MSG_TYPE.MSG_FLAG or self.rxm.size == 0:
             return None
-            
+
         # Read the payload data
         data = self.ser.read(self.rxm.size)
         
