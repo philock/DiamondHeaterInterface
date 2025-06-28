@@ -1,17 +1,25 @@
-import dearpygui.dearpygui as dpg
-from logger import mvLogger
-import config as cfg
 from pycomm import Comm, MSG
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from logger import mvLogger
+import dearpygui.dearpygui as dpg
 import os
-import time
+import csv
+import numpy as np
+import config as cfg
 
 #log = mvLogger()
 
 comm = Comm(baud_rate=115200)
+
+# Full record of values for saving to SVG
 temperature   = [] # Temperature data points
 setpoint      = [] # Setpoint data points
-time_temp     = [] # Timestamps for temperature data points
-time_setpoint = [] # Timestamps for setpoint data points
+timestamp     = [] # Timestamps for data points
+
+# Downsampled data points for efficient rendering to plot
+points = np.empty((3, cfg.N_points_max))
+idx_last = 0
 
 status_prev = 0
 
@@ -61,8 +69,8 @@ def disconnect():
 def new_setpoint(sender, app_data):
     comm.add_variable_token(app_data, MSG.T_SETPOINT)
     comm.transmit()
-    setpoint.append(app_data)
-    time_setpoint.append(time.time() + 7200)
+    #setpoint.append(app_data)
+    #time_setpoint.append(time.time() + 7200)
 
 # Start temperature controller
 def start_button():
@@ -89,11 +97,34 @@ def reset_button():
 
 # clear plot button callback
 def clear_plot():
+    global idx_last
+    idx_last = 0
     temperature.clear()
     setpoint.clear()
-    time_temp.clear()
-    time_setpoint.clear()
-    update_Plot()
+    timestamp.clear()
+    dpg.set_value("Setpoint Series",    [timestamp, setpoint])
+    dpg.set_value("Temperature Series", [timestamp, temperature])
+
+# sava plot data to csv file
+def save_plot():
+    # Get current date and time formatted for filename
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%H-%M--%d-%m-%Y")
+    filename = f"Temperature-{now}.csv"
+
+    # Write to CSV in current directory
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Temperature', 'Setpoint', 'Time'])  # Optional: header
+        for row in zip(temperature, setpoint, timestamp):
+            writer.writerow(row)
+        log.log_info(f"Wrote data to {filename}")
+
+# Change autoscaling of plot x-axis
+def checkbox_autoscale_cb(sender, app_data):
+    if app_data:
+        dpg.configure_item("x_axis", auto_fit=True)
+    else:
+        dpg.configure_item("x_axis", auto_fit=False)
 
 # Slider callbacks: Send new PID gains to heater
 def set_P():
@@ -173,16 +204,29 @@ def on_viewport_resize(sender, app_data):
     dpg.configure_item("Plot Window", pos=(left_width, top_height), width=right_width, height=bottom_height)
 
 # Pushes new temperature to the screen
-def update_Plot():
-    dpg.set_value("Setpoint Series", [time_setpoint, setpoint])
-    dpg.set_value("Temperature Series", [time_temp, temperature])
-    if(dpg.get_value("Checkbox Autoscale")):
-        dpg.fit_axis_data("x_axis")
-        #dpg.fit_axis_data("y_axis") # y-axis fits to data automatically using auto_fit=True
-        # Add some padding to the y-axis so that no plot line is at the limits of the plot
-        """ y_min, y_max = dpg.get_axis_limits("y_axis")
-        dpg.set_axis_limits("y_axis", y_min - 5, y_max + 5) """
+def update_Plot(temp, sp, time):
+    temperature.append(temp)
+    setpoint.append(sp)
+    timestamp.append(time)
 
+    # Append new points to back
+    global points, idx_last
+    points[:, idx_last] = np.array([temp, sp, time])
+    idx_last = idx_last + 1
+
+    # New downsampling set if last block length exceeds half the max size
+    if idx_last == cfg.N_points_max:
+        # Downsample by factor of two
+        points[:, :cfg.N_points_max//2] = 0.5*(points[:, 0::2] + points[:, 1::2])
+
+        # Start new block
+        idx_last = cfg.N_points_max//2
+
+        log.log_info("Downsampled plot to improve performance. This does not affect csv export.")
+
+    dpg.set_value("Setpoint Series",    [points[2,:idx_last].tolist(), points[1,:idx_last].tolist()])
+    dpg.set_value("Temperature Series", [points[2,:idx_last].tolist(), points[0,:idx_last].tolist()])
+        
 # Handle acknowledgements sent back from controller
 def handleAckNack(ack):
     msg = comm.get_next_msg()
@@ -225,15 +269,21 @@ def handle_Serial():
 
         elif msg.msg == MSG.T_ACTUAL:
             # Update plot datapoints
-            temperature.append(comm.get_payload(float))
-            setpoint.append(dpg.get_value("setpoint_input"))
-            t = time.time() + 7200 # Munich is two hours ahead of UTC (7200 seconds)
-            time_setpoint.append(t)
-            time_temp.append(t) 
+            temp= comm.get_payload(float)
+            sp = dpg.get_value("setpoint_input")
+
+            berlin_time = datetime.now(ZoneInfo("Europe/Berlin"))
+
+            # Get offset from UTC and UTC timestamp
+            offset_seconds = berlin_time.utcoffset().total_seconds()
+            utc_timestamp = berlin_time.timestamp()
+
+            # Timestamp with offset added
+            t = utc_timestamp + offset_seconds
         
             # Update UI elements
-            update_Plot()
-            dpg.configure_item("actual_temp_value", default_value=f"{temperature[-1]:.1f}")
+            update_Plot(temp, sp, t)
+            dpg.configure_item("actual_temp_value", default_value=f"{temp:.1f}")
 
         elif msg.msg == MSG.CURRENT:
             I = comm.get_payload(float)
@@ -298,7 +348,7 @@ def run():
         # Dropdown menu to select serial port and button to connect
         with dpg.group(horizontal=True):
             port_selection = ("COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM10")
-            dpg.add_combo(port_selection, tag="Port select", default_value="COM5", width=100)
+            dpg.add_combo(port_selection, tag="Port select", default_value="COM8", width=100)
             dpg.add_button(tag = "Connect Button", label="Connect", callback=connect)
 
         # Sliders to change PID loop gains. Handlers to only transmit after slider is released.
@@ -322,6 +372,18 @@ def run():
         dpg.add_separator(label="Log")
         global log
         log = mvLogger(parent="Settings Window")
+
+        # Menu bar with some tools for debugging.
+        with dpg.menu_bar():
+            with dpg.menu(label="Tools"):
+                dpg.add_menu_item(label="Show About", callback=lambda:dpg.show_tool(dpg.mvTool_About))
+                dpg.add_menu_item(label="Show Metrics", callback=lambda:dpg.show_tool(dpg.mvTool_Metrics))
+                dpg.add_menu_item(label="Show Documentation", callback=lambda:dpg.show_tool(dpg.mvTool_Doc))
+                dpg.add_menu_item(label="Show Debug", callback=lambda:dpg.show_tool(dpg.mvTool_Debug))
+                dpg.add_menu_item(label="Show Style Editor", callback=lambda:dpg.show_tool(dpg.mvTool_Style))
+                dpg.add_menu_item(label="Show Font Manager", callback=lambda:dpg.show_tool(dpg.mvTool_Font))
+                dpg.add_menu_item(label="Show Item Registry", callback=lambda:dpg.show_tool(dpg.mvTool_ItemRegistry))
+                dpg.add_menu_item(label="Show Stack Tool", callback=lambda:dpg.show_tool(dpg.mvTool_Stack))
             
     # Temperature window at top of viewport
     with dpg.window(tag="Temperature Window", no_title_bar=True, no_resize=True, no_move=True, no_close=True):
@@ -379,27 +441,35 @@ def run():
     # Plot window
     with dpg.window(tag="Plot Window", no_title_bar=True, no_resize=True, no_move=True, no_close=True):
         # create plot
-        with dpg.plot(label="Line Series", height=-1, width=-1):
+        with dpg.plot(label="Temperature History", tag="plot", height=-1, width=-1, use_24hour_clock=True, use_ISO8601=False):
             # optionally create legend
             dpg.add_plot_legend()
 
             # REQUIRED: create x and y axes
-            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_axis", scale=dpg.mvPlotScale_Time)
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time", tag="x_axis", scale=dpg.mvPlotScale_Time, auto_fit=True)
             dpg.add_plot_axis(dpg.mvYAxis, label="T (°C)", tag="y_axis", auto_fit=True)
 
             # series belong to a y axis
-            dpg.add_line_series(time_setpoint, setpoint, label="Setpoint", tag="Setpoint Series", parent="y_axis")
-            dpg.add_line_series(time_temp, temperature, label="Temperature", tag="Temperature Series", parent="y_axis")
+            dpg.add_line_series(timestamp, setpoint, label="Setpoint", tag="Setpoint Series", parent="y_axis")
+            dpg.add_line_series(timestamp, temperature, label="Temperature", tag="Temperature Series", parent="y_axis")
 
         # Menu bar 
         with dpg.menu_bar():
-            with dpg.menu(label="Plot Settings"):
-                dpg.add_checkbox(label="Autoscale Axis", tag="Checkbox Autoscale", default_value=True)
-                dpg.add_button(label="Clear Plot", callback=clear_plot)
+            #with dpg.menu(label="Plot Settings"):
+            dpg.add_button(label="Save", callback=save_plot)
+            dpg.add_separator()
+            dpg.add_button(label="Clear", callback=clear_plot)
+            dpg.add_separator()
+            dpg.add_checkbox(label="Autoscale", tag="Checkbox Autoscale", default_value=True, callback=checkbox_autoscale_cb)
+
+    # Add points to plot for testing
+    """ for i in range(int(1e3)):
+        temperature.append(2)
+        setpoint.append(1)
+        timestamp.append(time.time() + 7200) """
 
     # Callback for Window resizing
     dpg.set_viewport_resize_callback(on_viewport_resize)
-    #dpg.set_exit_callback(on_window_close)
 
     dpg.setup_dearpygui()
     dpg.show_viewport()
