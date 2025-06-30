@@ -126,6 +126,13 @@ def checkbox_autoscale_cb(sender, app_data):
     else:
         dpg.configure_item("x_axis", auto_fit=False)
 
+# Change maximal number of samples in plot (for better performance)
+def change_N_points_max(sender, app_data):
+    cfg.N_points_max = app_data
+    global points
+    points = np.empty((3, cfg.N_points_max))
+    clear_plot()
+
 # Slider callbacks: Send new PID gains to heater
 def set_P():
     p = dpg.get_value("slider_P")
@@ -348,7 +355,7 @@ def run():
         # Dropdown menu to select serial port and button to connect
         with dpg.group(horizontal=True):
             port_selection = ("COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM10")
-            dpg.add_combo(port_selection, tag="Port select", default_value="COM8", width=100)
+            dpg.add_combo(port_selection, tag="Port select", default_value="COM0", width=100)
             dpg.add_button(tag = "Connect Button", label="Connect", callback=connect)
 
         # Sliders to change PID loop gains. Handlers to only transmit after slider is released.
@@ -376,14 +383,15 @@ def run():
         # Menu bar with some tools for debugging.
         with dpg.menu_bar():
             with dpg.menu(label="Tools"):
-                dpg.add_menu_item(label="Show About", callback=lambda:dpg.show_tool(dpg.mvTool_About))
+                #dpg.add_menu_item(label="Show About", callback=lambda:dpg.show_tool(dpg.mvTool_About))
                 dpg.add_menu_item(label="Show Metrics", callback=lambda:dpg.show_tool(dpg.mvTool_Metrics))
-                dpg.add_menu_item(label="Show Documentation", callback=lambda:dpg.show_tool(dpg.mvTool_Doc))
+                #dpg.add_menu_item(label="Show Documentation", callback=lambda:dpg.show_tool(dpg.mvTool_Doc))
                 dpg.add_menu_item(label="Show Debug", callback=lambda:dpg.show_tool(dpg.mvTool_Debug))
                 dpg.add_menu_item(label="Show Style Editor", callback=lambda:dpg.show_tool(dpg.mvTool_Style))
-                dpg.add_menu_item(label="Show Font Manager", callback=lambda:dpg.show_tool(dpg.mvTool_Font))
-                dpg.add_menu_item(label="Show Item Registry", callback=lambda:dpg.show_tool(dpg.mvTool_ItemRegistry))
-                dpg.add_menu_item(label="Show Stack Tool", callback=lambda:dpg.show_tool(dpg.mvTool_Stack))
+                #dpg.add_menu_item(label="Show Font Manager", callback=lambda:dpg.show_tool(dpg.mvTool_Font))
+                #dpg.add_menu_item(label="Show Item Registry", callback=lambda:dpg.show_tool(dpg.mvTool_ItemRegistry))
+                #dpg.add_menu_item(label="Show Stack Tool", callback=lambda:dpg.show_tool(dpg.mvTool_Stack))
+                dpg.add_input_int(label="Plot max points", default_value=cfg.N_points_max, callback=change_N_points_max, on_enter=True, step=0, width=60)
             
     # Temperature window at top of viewport
     with dpg.window(tag="Temperature Window", no_title_bar=True, no_resize=True, no_move=True, no_close=True):

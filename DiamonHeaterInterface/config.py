@@ -5,7 +5,7 @@ window_height = round(window_width/aspect_ratio)
 top_temperature_window_height = 105
 
 # Plot downsampling. After N_points_max datapoints, the plot gets downsampled by factor of two.
-N_points_max = 100000
+N_points_max = 30000
 
 # Temperature settings
 T_max = 200.0
