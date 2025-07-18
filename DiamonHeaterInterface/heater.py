@@ -15,7 +15,10 @@ comm = Comm(baud_rate=115200)
 # Full record of values for saving to SVG
 temperature   = [] # Temperature data points
 setpoint      = [] # Setpoint data points
-timestamp     = [] # Timestamps for data points
+timestamp     = [] # Timestamps for temperature data points
+
+current           = [] # Heater wire current
+current_timestamp = [] # Timestamps for current data points
 
 # Downsampled data points for efficient rendering to plot
 points = np.empty((3, cfg.N_points_max))
@@ -102,6 +105,8 @@ def clear_plot():
     temperature.clear()
     setpoint.clear()
     timestamp.clear()
+    current.clear()
+    current_timestamp.clear()
     dpg.set_value("Setpoint Series",    [timestamp, setpoint])
     dpg.set_value("Temperature Series", [timestamp, temperature])
 
@@ -114,8 +119,8 @@ def save_plot():
     # Write to CSV in current directory
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Temperature', 'Setpoint', 'Time'])  # Optional: header
-        for row in zip(temperature, setpoint, timestamp):
+        writer.writerow(['Temperature', ' Setpoint', ' Temperature timestamp', ' Current', ' Current timestamp'])
+        for row in zip(temperature, setpoint, timestamp, current, current_timestamp):
             writer.writerow(row)
         log.log_info(f"Wrote data to {filename}")
 
@@ -258,6 +263,16 @@ def handleAckNack(ack):
         elif msg.msg == MSG.T_SETPOINT:
             log.log_info("Failed to set new setpoint!")
 
+def get_time():
+    berlin_time = datetime.now(ZoneInfo("Europe/Berlin"))
+
+    # Get offset from UTC and UTC timestamp
+    offset_seconds = berlin_time.utcoffset().total_seconds()
+    utc_timestamp = berlin_time.timestamp()
+
+    # Timestamp with offset added
+    t = utc_timestamp + offset_seconds
+
 # Called continuously in the render loop
 def handle_Serial():
     if not comm.ser.is_open:
@@ -276,24 +291,20 @@ def handle_Serial():
 
         elif msg.msg == MSG.T_ACTUAL:
             # Update plot datapoints
-            temp= comm.get_payload(float)
-            sp = dpg.get_value("setpoint_input")
+            temp = comm.get_payload(float)
+            sp   = dpg.get_value("setpoint_input")
+            t    = get_time()
 
-            berlin_time = datetime.now(ZoneInfo("Europe/Berlin"))
-
-            # Get offset from UTC and UTC timestamp
-            offset_seconds = berlin_time.utcoffset().total_seconds()
-            utc_timestamp = berlin_time.timestamp()
-
-            # Timestamp with offset added
-            t = utc_timestamp + offset_seconds
-        
             # Update UI elements
             update_Plot(temp, sp, t)
             dpg.configure_item("actual_temp_value", default_value=f"{temp:.1f}")
 
         elif msg.msg == MSG.CURRENT:
             I = comm.get_payload(float)
+
+            current.append(I)
+            current_timestamp.append(get_time())
+
             dpg.configure_item("current_value", default_value=f"{I:.2f}")
 
         elif msg.msg == MSG.STATUS:
@@ -354,7 +365,7 @@ def run():
 
         # Dropdown menu to select serial port and button to connect
         with dpg.group(horizontal=True):
-            port_selection = ("COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM10")
+            port_selection = ("COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM10", "COM11", "COM12", "COM13", "COM14", "COM15", "COM16", "COM17", "COM18", "COM19", "COM20")
             dpg.add_combo(port_selection, tag="Port select", default_value="COM0", width=100)
             dpg.add_button(tag = "Connect Button", label="Connect", callback=connect)
 
