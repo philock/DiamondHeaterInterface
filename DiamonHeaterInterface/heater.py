@@ -24,6 +24,7 @@ current_timestamp = [] # Timestamps for current data points
 points = np.empty((3, cfg.N_points_max))
 idx_last = 0
 
+# System status indicator previous state
 status_prev = 0
 
 # Scan available serial ports and update scroll box
@@ -272,6 +273,7 @@ def get_time():
 
     # Timestamp with offset added
     t = utc_timestamp + offset_seconds
+    return t
 
 # Called continuously in the render loop
 def handle_Serial():
