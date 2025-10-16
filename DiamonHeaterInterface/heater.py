@@ -114,8 +114,8 @@ def clear_plot():
 # sava plot data to csv file
 def save_plot():
     # Get current date and time formatted for filename
-    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%H-%M--%d-%m-%Y")
-    filename = f"Temperature-{now}.csv"
+    now = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%d-%m-%Y_%H-%M")
+    filename = f"Temperature_{now}.csv"
 
     # Write to CSV in current directory
     with open(filename, mode='w', newline='') as file:

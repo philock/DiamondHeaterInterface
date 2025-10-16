@@ -8,7 +8,7 @@ top_temperature_window_height = 105
 N_points_max = 30000
 
 # Temperature settings
-T_max = 200.0
+T_max = 300.0
 T_min = 0
 
 # PID settings
